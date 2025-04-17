@@ -232,7 +232,7 @@ public class GamePanel extends Canvas implements Runnable {
 		mousex = mousey = 0;
 
 		mapa = new Mapa_Grid(100, 100, ntileW, ntileH);
-		mapa.loadmapfromimage("/imagemlabirinto1000.png");
+		mapa.loadmapfromimage("/resources/imagemlabirinto1000.png");
 
 	} // end of GamePanel()
 
