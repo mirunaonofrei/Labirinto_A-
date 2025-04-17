@@ -6,6 +6,7 @@ import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.Random;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.awt.image.*;
 
 public class GamePanel extends Canvas implements Runnable {
@@ -44,15 +45,36 @@ public class GamePanel extends Canvas implements Runnable {
 
 	Font f = new Font("", Font.BOLD, 20);
 
+	// A*
+	class NodoAStar {
+		int x, y;
+		int g, h;
+		NodoAStar pai;
+
+		public NodoAStar(int x, int y, int g, int h, NodoAStar pai) {
+			this.x = x;
+			this.y = y;
+			this.g = g;
+			this.h = h;
+			this.pai = pai;
+		}
+
+		public int getF() {
+			return g + h;
+		}
+	}
+
+	private CopyOnWriteArrayList<NodoAStar> abertosAStar = new CopyOnWriteArrayList<>();
+	private HashSet<Integer> fechadosAStar = new HashSet<>();
+
 	public GamePanel() {
 
 		setBackground(Color.white);
 		setPreferredSize(new Dimension(PWIDTH, PHEIGHT));
 
-		// create game components
 		setFocusable(true);
 
-		requestFocus(); // JPanel now receives key events
+		requestFocus();
 
 		// Adiciona um Key Listner
 		addKeyListener(new KeyAdapter() {
@@ -112,10 +134,10 @@ public class GamePanel extends Canvas implements Runnable {
 					int mx = mousex / 16;
 					int my = mousey / 16;
 
-					if (mx > mapa.Altura) {
+					if (mx >= mapa.Largura || mx < 0) {
 						return;
 					}
-					if (my > mapa.Largura) {
+					if (my >= mapa.Altura || my < 0) {
 						return;
 					}
 
@@ -145,10 +167,10 @@ public class GamePanel extends Canvas implements Runnable {
 				int mx = mousex / 16;
 				int my = mousey / 16;
 
-				if (mx > mapa.Altura) {
+				if (mx >= mapa.Largura || mx < 0) {
 					return;
 				}
-				if (my > mapa.Largura) {
+				if (my >= mapa.Altura || my < 0) {
 					return;
 				}
 
@@ -166,15 +188,15 @@ public class GamePanel extends Canvas implements Runnable {
 						long timeini = System.currentTimeMillis();
 
 						// TODO Executa Algoritmo
-						System.out.println("" + my + " " + mx);
-						System.out.println("meueroi " + (int) (meuHeroi.X / 16) + " " + (int) (meuHeroi.Y / 16));
+						System.out.println("Destino: " + my + " " + mx);
+						System.out.println("Posição Atual: " + (int) (meuHeroi.X / 16) + " " + (int) (meuHeroi.Y / 16));
 
 						////////
 						rodaAEstrela((int) (meuHeroi.X / 16), (int) (meuHeroi.Y / 16), mx, my);
 						////////
 
 						long timefin = System.currentTimeMillis() - timeini;
-						System.out.println("Tempo Final: " + timefin);
+						System.out.println("Tempo Final: " + timefin + "ms");
 					} else {
 						System.out.println("Caminho Final Bloqueado");
 					}
@@ -234,31 +256,10 @@ public class GamePanel extends Canvas implements Runnable {
 		mapa = new Mapa_Grid(100, 100, ntileW, ntileH);
 		mapa.loadmapfromimage("/resources/imagemlabirinto1000.png");
 
-	} // end of GamePanel()
-
-	class NodoAStar {
-		int x, y;
-		int g, h;
-		NodoAStar pai;
-
-		public NodoAStar(int x, int y, int g, int h, NodoAStar pai) {
-			this.x = x;
-			this.y = y;
-			this.g = g;
-			this.h = h;
-			this.pai = pai;
-		}
-
-		public int getF() {
-			return g + h;
-		}
 	}
 
 	int passoAtual = 0;
 	int tempoMovimento = 0;
-
-	ArrayList<NodoAStar> abertosAStar = new ArrayList<>();
-	HashSet<Integer> fechadosAStar = new HashSet<>();
 
 	public boolean rodaAEstrela(int iniX, int iniY, int objX, int objY) {
 		abertosAStar.clear();
@@ -267,16 +268,31 @@ public class GamePanel extends Canvas implements Runnable {
 		NodoAStar start = new NodoAStar(iniX, iniY, 0, heuristica(iniX, iniY, objX, objY), null);
 		abertosAStar.add(start);
 
-		while (!abertosAStar.isEmpty()) {
-			// Seleciona nó com menor F
-			NodoAStar atual = abertosAStar.get(0);
+		int maxIterations = 50000;
+		int iterations = 0;
+
+		while (!abertosAStar.isEmpty() && iterations < maxIterations) {
+			iterations++;
+
+			NodoAStar atual = null;
+			int lowestF = Integer.MAX_VALUE;
+
 			for (NodoAStar n : abertosAStar) {
-				if (n.getF() < atual.getF() || (n.getF() == atual.getF() && n.g > atual.g)) {
+				int f = n.getF();
+				if (f < lowestF || (f == lowestF && n.g > atual.g)) {
+					lowestF = f;
 					atual = n;
 				}
 			}
+
+			if (atual == null) {
+				break;
+			}
+
 			abertosAStar.remove(atual);
-			fechadosAStar.add(atual.x + atual.y * 1000);
+
+			int hash = atual.x + atual.y * 1000;
+			fechadosAStar.add(hash);
 
 			if (atual.x == objX && atual.y == objY) {
 				// Reconstruir caminho
@@ -286,44 +302,60 @@ public class GamePanel extends Canvas implements Runnable {
 					path.addFirst(temp);
 					temp = temp.pai;
 				}
+
 				caminho = new int[path.size() * 2];
-				for (int i = 0; i < path.size(); i++) {
-					caminho[i * 2] = path.get(i).x;
-					caminho[i * 2 + 1] = path.get(i).y;
+				int i = 0;
+				for (NodoAStar node : path) {
+					caminho[i] = node.x;
+					caminho[i + 1] = node.y;
+					i += 2;
 				}
 				passoAtual = 0;
+				System.out.println("Caminho encontrado com " + path.size() + " passos");
 				return true;
 			}
 
 			// Vizinhos (sem diagonais)
 			int[] dx = { 0, 1, 0, -1 };
-			int[] dy = { 1, 0, -1, 0 };
+			int[] dy = { -1, 0, 1, 0 };
+
 			for (int i = 0; i < 4; i++) {
 				int nx = atual.x + dx[i];
 				int ny = atual.y + dy[i];
-				int hash = nx + ny * 1000;
 
-				if (nx < 0 || ny < 0 || nx >= mapa.Largura || ny >= mapa.Altura)
+				if (nx < 0 || ny < 0 || nx >= mapa.Largura || ny >= mapa.Altura) {
 					continue;
-				if (mapa.mapa[ny][nx] == 1 || fechadosAStar.contains(hash))
+				}
+
+				hash = nx + ny * 1000;
+				if (mapa.mapa[ny][nx] == 1 || fechadosAStar.contains(hash)) {
 					continue;
+				}
 
-				int g = atual.g + 10;
-				int h = heuristica(nx, ny, objX, objY);
-				NodoAStar novo = new NodoAStar(nx, ny, g, h, atual);
+				int newG = atual.g + 10;
 
-				// Se já estiver aberto e com G maior, ignora
 				boolean skip = false;
 				for (NodoAStar aberto : abertosAStar) {
-					if (aberto.x == nx && aberto.y == ny && aberto.g <= g) {
-						skip = true;
-						break;
+					if (aberto.x == nx && aberto.y == ny) {
+						if (aberto.g <= newG) {
+							skip = true;
+							break;
+						} else {
+							abertosAStar.remove(aberto);
+							break;
+						}
 					}
 				}
-				if (!skip)
+
+				if (!skip) {
+					int h = heuristica(nx, ny, objX, objY);
+					NodoAStar novo = new NodoAStar(nx, ny, newG, h, atual);
 					abertosAStar.add(novo);
+				}
 			}
 		}
+
+		System.out.println("Nenhum caminho encontrado após " + iterations + " iterações");
 		return false;
 	}
 
@@ -331,147 +363,18 @@ public class GamePanel extends Canvas implements Runnable {
 		return 10 * (Math.abs(x1 - x2) + Math.abs(y1 - y2));
 	}
 
-	// LinkedList<Nodo> nodosPercorridos = new LinkedList();
-	// HashSet<Integer> nodosPercorridos = new HashSet<Integer>();
-	// public boolean jaPassei(int nX,int nY) {
-	// return nodosPercorridos.contains(nX+nY*1000);
-	// }
-	// LinkedList<Nodo> pilhaprofundidade = new LinkedList();
-
-	// public boolean rodaBuscaProfundidade(int iniX,int iniY,int objX,int objY) {
-	// Nodo nodoAtivo = new Nodo(iniX, iniY);
-	// pilhaprofundidade.add(nodoAtivo);
-
-	// while(pilhaprofundidade.size()>0) {
-	// //System.out.println(""+nodoAtivo.x+" "+nodoAtivo.y+" | "+objX+" "+objY);
-
-	// if(nodoAtivo.x==objX&&nodoAtivo.y==objY) {
-	// caminho = new int[pilhaprofundidade.size()*2];
-	// int index = 0;
-	// for (Iterator iterator = pilhaprofundidade.iterator(); iterator.hasNext();) {
-	// Nodo n = (Nodo) iterator.next();
-	// caminho[index] = n.x;
-	// caminho[index+1] = n.y;
-	// index+=2;
-	// }
-	// return true;
-	// }
-
-	// // if(mapa.mapa[nodoAtivo.y][nodoAtivo.x]==1) {
-	// // pilhaprofundidade.removeLast();
-	// // nodoAtivo=pilhaprofundidade.getLast();
-	// // continue;
-	// // }
-
-	// synchronized (nodosPercorridos) {
-	// //nodosPercorridos.add(nodoAtivo);
-	// nodosPercorridos.add(nodoAtivo.x+nodoAtivo.y*1000);
-	// }
-
-	// //if(jaPassei(iniX,iniY)) {
-	// // return false;
-	// //}/
-
-	// //synchronized (nodosPercorridos) {
-	// // nodosPercorridos.add(new Nodo(iniX,iniY));
-	// //}
-
-	// // try {
-	// // Thread.sleep(10);
-	// // } catch (InterruptedException e) {
-	// // e.printStackTrace();
-	// // }
-
-	// Nodo t[] = new Nodo[4];
-	// t[0] = new Nodo(nodoAtivo.x, nodoAtivo.y+1);
-	// t[1] = new Nodo(nodoAtivo.x+1, nodoAtivo.y);
-	// t[2] = new Nodo(nodoAtivo.x, nodoAtivo.y-1);
-	// t[3] = new Nodo(nodoAtivo.x-1, nodoAtivo.y);
-
-	// boolean ok = false;
-	// for(int i = 0; i < 4; i++) {
-	// if(t[i].y<0||t[i].y>=1000||t[i].x<0||t[i].x>=1000) {
-	// continue;
-	// }
-	// if(mapa.mapa[t[i].y][t[i].x]==0&&jaPassei(t[i].x,t[i].y)==false) {
-	// pilhaprofundidade.add(t[i]);
-	// nodoAtivo=t[i];
-	// ok = true;
-	// break;
-	// }
-	// }
-
-	// if(ok) {
-	// continue;
-	// }
-
-	// pilhaprofundidade.removeLast();
-	// nodoAtivo=pilhaprofundidade.getLast();
-	// }
-
-	// return false;
-	// }
-	// public boolean rodaBuscaProfundidadeRecursivo(int iniX,int iniY,int objX,int
-	// objY) {
-	// System.out.println(""+iniX+" "+iniY+" | "+objX+" "+objY);
-	//
-	// if(iniX==objX&&iniY==objY) {
-	// return true;
-	// }
-	//
-	// if(mapa.mapa[iniY][iniX]==1) {
-	// return false;
-	// }
-	//
-	// if(jaPassei(iniX,iniY)) {
-	// return false;
-	// }
-	//
-	// synchronized (nodosPercorridos) {
-	// nodosPercorridos.add(new Nodo(iniX,iniY));
-	// }
-	//
-	//
-	// try {
-	// Thread.sleep(10);
-	// } catch (InterruptedException e) {
-	// e.printStackTrace();
-	// }
-	//
-	// if(rodaBuscaProfundidadeRecursivo(iniX,iniY+1,objX,objY)) {
-	// return true;
-	// }
-	// if(rodaBuscaProfundidadeRecursivo(iniX+1,iniY,objX,objY)) {
-	// return true;
-	// }
-	// if(rodaBuscaProfundidadeRecursivo(iniX,iniY-1,objX,objY)) {
-	// return true;
-	// }
-	// if(rodaBuscaProfundidadeRecursivo(iniX-1,iniY,objX,objY)) {
-	// return true;
-	// }
-	//
-	// return false;
-	// }
-
-	public void startGame()
-	// initialise and start the thread
-	{
+	public void startGame() {
 		if (animator == null || !running) {
 			animator = new Thread(this);
 			animator.start();
 		}
-	} // end of startGame()
+	}
 
-	public void stopGame()
-	// called by the user to stop execution
-	{
+	public void stopGame() {
 		running = false;
 	}
 
-	public void run()
-	/* Repeatedly update, render, sleep */
-	{
+	public void run() {
 		running = true;
 
 		long DifTime, TempoAnterior;
@@ -485,13 +388,13 @@ public class GamePanel extends Canvas implements Runnable {
 
 		while (running) {
 
-			gameUpdate(DifTime); // game state is updated
+			gameUpdate(DifTime);
 			Graphics g = strategy.getDrawGraphics();
-			gameRender((Graphics2D) g); // render to a buffer
+			gameRender((Graphics2D) g);
 			strategy.show();
 
 			try {
-				Thread.sleep(0); // sleep a bit
+				Thread.sleep(5);
 			} catch (InterruptedException ex) {
 			}
 
@@ -507,16 +410,15 @@ public class GamePanel extends Canvas implements Runnable {
 			}
 
 		}
-		System.exit(0); // so enclosing JFrame/JApplet exits
-	} // end of run()
+		System.exit(0);
+	}
 
 	int timerfps = 0;
 
 	private void gameUpdate(long DiffTime) {
-		// Movimentação automática do agente
 		if (caminho != null && passoAtual < caminho.length / 2) {
 			tempoMovimento += DiffTime;
-			if (tempoMovimento >= 150) { // 150ms por passo
+			if (tempoMovimento >= 150) {
 				meuHeroi.X = caminho[passoAtual * 2] * 16;
 				meuHeroi.Y = caminho[passoAtual * 2 + 1] * 16;
 				passoAtual++;
@@ -524,55 +426,105 @@ public class GamePanel extends Canvas implements Runnable {
 			}
 		}
 
+		if (LEFT) {
+			mapa.MapX -= 5;
+		}
+		if (RIGHT) {
+			mapa.MapX += 5;
+		}
+		if (UP) {
+			mapa.MapY -= 5;
+		}
+		if (DOWN) {
+			mapa.MapY += 5;
+		}
 	}
 
 	private void gameRender(Graphics2D dbg) {
-		// limpar fundo primeiro
 		dbg.setColor(Color.white);
 		dbg.fillRect(0, 0, PWIDTH, PHEIGHT);
-	
+
 		AffineTransform trans = dbg.getTransform();
 		dbg.scale(zoom, zoom);
-	
+
 		try {
 			mapa.DesenhaSe(dbg);
 		} catch (Exception e) {
 			System.out.println("Erro ao desenhar mapa");
+			e.printStackTrace();
 		}
-	
-		// desenhar nós A* (fechados = verde, abertos = laranja)
-		for (Integer hash : fechadosAStar) {
-			int px = hash % 1000;
-			int py = hash / 1000;
-			dbg.setColor(Color.GREEN);
-			dbg.fillRect(px * 16 - mapa.MapX, py * 16 - mapa.MapY, 16, 16);
+
+		// desenhar nós A* (fechados = verde)
+		synchronized(fechadosAStar) {
+			for (Integer hash : fechadosAStar) {
+				int px = hash % 1000;
+				int py = hash / 1000;
+				dbg.setColor(new Color(0, 200, 0, 150));
+				dbg.fillRect(px * 16 - mapa.MapX, py * 16 - mapa.MapY, 16, 16);
+			}
 		}
-		for (NodoAStar n : abertosAStar) {
-			dbg.setColor(Color.ORANGE);
-			dbg.fillRect(n.x * 16 - mapa.MapX, n.y * 16 - mapa.MapY, 16, 16);
+
+		// desenhar nós A* (abertos = laranja)
+		synchronized(abertosAStar) {
+			for (NodoAStar n : abertosAStar) {
+				dbg.setColor(new Color(255, 165, 0, 150));
+				dbg.fillRect(n.x * 16 - mapa.MapX, n.y * 16 - mapa.MapY, 16, 16);
+			}
 		}
-	
+
 		for (int i = 0; i < listadeagentes.size(); i++) {
 			listadeagentes.get(i).DesenhaSe(dbg, mapa.MapX, mapa.MapY);
 		}
-	
+
 		if (caminho != null) {
 			try {
 				for (int i = 0; i < caminho.length / 2; i++) {
 					int nx = caminho[i * 2];
 					int ny = caminho[i * 2 + 1];
-					dbg.setColor(Color.BLUE);
+
+					float hue = (float)i / (caminho.length / 2);
+					Color pathColor = Color.getHSBColor(hue, 0.8f, 0.9f);
+					dbg.setColor(pathColor);
+
 					dbg.fillRect(nx * 16 - mapa.MapX, ny * 16 - mapa.MapY, 16, 16);
+
+					if (i < caminho.length/2 - 1) {
+						int nextX = caminho[(i+1) * 2];
+						int nextY = caminho[(i+1) * 2 + 1];
+
+						dbg.setColor(Color.BLACK);
+						dbg.drawLine(
+								nx * 16 - mapa.MapX + 8,
+								ny * 16 - mapa.MapY + 8,
+								nextX * 16 - mapa.MapX + 8,
+								nextY * 16 - mapa.MapY + 8
+						);
+					}
 				}
+
+				if (passoAtual < caminho.length / 2) {
+					int cx = caminho[passoAtual * 2];
+					int cy = caminho[passoAtual * 2 + 1];
+					dbg.setColor(Color.RED);
+					dbg.drawRect(cx * 16 - mapa.MapX, cy * 16 - mapa.MapY, 16, 16);
+				}
+
 			} catch (Exception e) {
+				System.out.println("Error drawing path");
+				e.printStackTrace();
 			}
 		}
-	
+
 		dbg.setTransform(trans);
 		dbg.setFont(f);
 		dbg.setColor(Color.BLUE);
 		dbg.drawString("FPS: " + FPS, 10, 30);
 		dbg.drawString("N (Fechados): " + fechadosAStar.size(), 100, 30);
+		dbg.drawString("N (Abertos): " + abertosAStar.size(), 300, 30);
+
+		if (caminho != null) {
+			dbg.drawString("Tamanho do caminho: " + (caminho.length/2), 500, 30);
+			dbg.drawString("Passo atual: " + passoAtual + "/" + (caminho.length/2), 700, 30);
+		}
 	}
-	
 }
