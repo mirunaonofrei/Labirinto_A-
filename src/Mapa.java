@@ -41,16 +41,16 @@ public  class Mapa {
 	    		
 	    		
 	    	
-	    		int Versao = data.readInt(); // lê Versao
-	        	Largura = ReadCInt(data);    // lê Largura
-	        	Altura = ReadCInt(data);	// lê Largura
+	    		//int Versao = data.readInt(); // lï¿½ Versao
+	        	Largura = ReadCInt(data);    // lï¿½ Largura
+	        	Altura = ReadCInt(data);	// lï¿½ Largura
 	        	
 	        	System.out.println(" Largura "+Largura);
 	        	
 	           	System.out.println(" Altura "+Altura);
 	           	
-	        	int ltilex =  ReadCInt(data);// lê Larg Tile
-	        	int ltiley =  ReadCInt(data);// lê Altura Tile
+	        	int ltilex =  ReadCInt(data);// lï¿½ Larg Tile
+	        	int ltiley =  ReadCInt(data);// lï¿½ Altura Tile
 	        	
 	        	System.out.println(" ltilex "+ltilex);
 	        	
@@ -58,21 +58,21 @@ public  class Mapa {
 	           	
 	        	byte nome[] = new byte[32]; 
 
-	        	data.read(nome,0,32);       // lê Nome Tilemap
+	        	data.read(nome,0,32);       // lï¿½ Nome Tilemap
 	        	data.read(nome,0,32); 
 	        	
-	        	int numLayers =  ReadCInt(data);// lê numero de Layers
-	        	int numTiles =  ReadCInt(data);// lê numero de Tiles
+	        	int numLayers =  ReadCInt(data);// lï¿½ numero de Layers
+	        	int numTiles =  ReadCInt(data);// lï¿½ numero de Tiles
 	        	
 	           	System.out.println(" numLayers "+numLayers);
 	           	System.out.println(" numTiles "+numTiles);
 	        	
-	            int BytesPorTiles =  ReadCInt(data); // lê numero de bytes por tile;
+	            int BytesPorTiles =  ReadCInt(data); // lï¿½ numero de bytes por tile;
 	            
 	           	System.out.println(" BytesPorTiles "+BytesPorTiles);
 	           	
-	            int vago1 =  ReadCInt(data); // lê vago;
-	            int vago2 =  ReadCInt(data); // lê vago;            
+	            // int vago1 =  ReadCInt(data); // lï¿½ vago;
+	            // int vago2 =  ReadCInt(data); // lï¿½ vago;            
 	            
 	        	mapa = new int[Altura][Largura];
 	        	mapa2 = new int[Altura][Largura];
@@ -249,13 +249,13 @@ public  class Mapa {
 	    }
 
 	 public int ReadCInt(DataInputStream data) throws IOException{
-	        int dado;
+	        //int dado;
 	    	int b1 = data.readByte();
 	    	int b2 = data.readByte(); 
 	    	int b3 = data.readByte(); 
 	    	int b4 = data.readByte();                     	
 	    	
-	    	return dado = ((int)b1&0x00ff)|(((int)b2&0x00ff)<<8)|(((int)b3&0x00ff)<<16)|(((int)b4&0x00ff)<<24);            	    	
+	    	return  ((int)b1&0x00ff)|(((int)b2&0x00ff)<<8)|(((int)b3&0x00ff)<<16)|(((int)b4&0x00ff)<<24);            	    	
 	    }
 	
 }
